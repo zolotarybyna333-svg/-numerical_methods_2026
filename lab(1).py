@@ -188,4 +188,32 @@ for x,y in zip(dist, heights):
     pts += [X(x), Y(y)]
 
 canvas.create_line(pts, fill="green", width=2)
+# ===============================
+# Графік похибок для вузлів
+# ===============================
+plt.figure(figsize=(10,5))
+
+for k in [10, 15, 20]:
+    idx = np.linspace(0, len(dist)-1, k, dtype=int)
+    xk = dist[idx]
+    yk = heights[idx]
+
+    a,b,c,d = cubic_spline_coeffs(xk, yk)
+
+    # Обчислюємо сплайн на всіх оригінальних точках
+    ys_full = np.array([spline_eval(x, xk, a, b, c, d) for x in dist])
+
+    # Похибка
+    error = ys_full - heights
+
+    plt.plot(dist, error, label=f"{k} вузлів")
+
+plt.axhline(0, color='k', linestyle='--', linewidth=1)
+plt.legend()
+plt.grid()
+plt.title("Похибка кубічного сплайну для різної кількості вузлів")
+plt.xlabel("Відстань, км")
+plt.ylabel("Похибка, м")
+plt.show()
 root.mainloop()
+
