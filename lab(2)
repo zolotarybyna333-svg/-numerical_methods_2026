@@ -47,17 +47,59 @@ def newton_interpolation(x, diff_table, value):
         result += diff_table[0][i] * product
 
     return result
+# ===============================
+# 4. Метод факторіальних многочленів
+# ===============================
+
+def finite_differences(y):
+    n = len(y)
+    table = np.zeros((n,n))
+    table[:,0] = y
+
+    for j in range(1,n):
+        for i in range(n-j):
+            table[i][j] = table[i+1][j-1] - table[i][j-1]
+
+    return table
+
+
+def factorial_polynomial(x,y,value):
+
+    n = len(x)
+
+    diff_table = finite_differences(y)
+
+    h = x[1] - x[0]
+
+    t = (value - x[0]) / h
+
+    result = y[0]
+
+    fact = 1
+    term = 1
+
+    for i in range(1,n):
+
+        term *= (t - (i-1))
+        fact *= i
+
+        result += (term * diff_table[0][i]) / fact
+
+    return result
 
 # ===============================
-# 4. Прогноз FPS для 1000 об'єктів
+# 5. Прогноз FPS для 1000 об'єктів
 # ===============================
 
 fps_1000 = newton_interpolation(x, diff_table, 1000)
 
 print("FPS для 1000 об'єктів:", fps_1000)
+fps_factorial = factorial_polynomial(x,y,1000)
+
+print("FPS (метод факторіальних многочленів):",fps_factorial)
 
 # ===============================
-# 5. Пошук мінімального n для FPS ≥ 60
+# 6. Пошук мінімального n для FPS ≥ 60
 # ===============================
 
 objects_range = np.linspace(min(x), max(x), 500)
@@ -70,7 +112,7 @@ for obj,fps in zip(objects_range,fps_values):
         break
 
 # ===============================
-# 6. Графік FPS(n)
+# 7. Графік FPS(n)
 # ===============================
 
 plt.figure()
@@ -87,7 +129,7 @@ plt.legend()
 plt.show()
 
 # ===============================
-# 7. Дослідження кількості вузлів
+# 8. Дослідження кількості вузлів
 # ===============================
 
 nodes_list = [5,10,20]
@@ -114,7 +156,7 @@ plt.legend()
 plt.show()
 
 # ===============================
-# 8. Графік похибки
+# 9. Графік похибки
 # ===============================
 
 plt.figure()
