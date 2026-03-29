@@ -1,0 +1,77 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ===============================
+# 1. Функція та її точна похідна
+# ===============================
+def M(t):
+    return 50 * np.exp(-0.1 * t) + 5 * np.sin(t)
+
+def dM_exact(t):
+    return -5 * np.exp(-0.1 * t) + 5 * np.cos(t)
+
+x0 = 5
+exact = dM_exact(x0)
+
+# ===============================
+# 2. Центральна різниця та пошук h0
+# ===============================
+def derivative(f, x, h):
+    return (f(x + h) - f(x - h)) / (2 * h)
+
+
+h_values = np.logspace(-20, 3, 500)
+errors = [abs(derivative(M, x0, h) - exact) for h in h_values]
+
+# Пошук оптимального h0
+min_index = np.argmin(errors)
+h0 = h_values[min_index]
+R0 = errors[min_index]
+
+print(f"Оптимальний крок h0 = {h0:.2e}")
+print(f"Мінімальна похибка R0 = {R0:.2e}")
+
+# Графік
+plt.figure(figsize=(8, 5))
+plt.loglog(h_values, errors, label='Похибка R(h)')
+plt.axvline(h0, color='r', linestyle='--', label=f'h0 ≈ {h0:.1e}')
+plt.xlabel("Крок h")
+plt.ylabel("Похибка R")
+plt.title("Залежність похибки від кроку")
+plt.grid(True, which="both", ls="-")
+plt.legend()
+plt.show()
+
+# ===============================
+# 3. Рунге-Ромберг (h = 10^-3)
+# ===============================
+h = 1e-3
+y_h = derivative(M, x0, h)
+y_2h = derivative(M, x0, 2*h)
+
+R1 = abs(y_h - exact)
+
+
+y_R = y_h + (y_h - y_2h) / 3
+R2 = abs(y_R - exact)
+
+print("\nМетод Рунге-Ромберга (h=1e-3):")
+print(f"y'(h)  = {y_h:.10f}")
+print(f"y_R    = {y_R:.10f}")
+print(f"R1     = {R1:.2e}")
+print(f"R2     = {R2:.2e} (Уточнення)")
+
+# ===============================
+# 4. Метод Ейткена
+# ===============================
+y_4h = derivative(M, x0, 4*h)
+
+
+y_E = (y_2h**2 - y_4h * y_h) / (2 * y_2h - (y_4h + y_h))
+p = (1 / np.log(2)) * np.log(abs((y_4h - y_2h) / (y_2h - y_h)))
+R3 = abs(y_E - exact)
+
+print("\nМетод Ейткена:")
+print(f"y_E    = {y_E:.10f}")
+print(f"Порядок точності p = {p:.4f}")
+print(f"R3     = {R3:.2e}")
