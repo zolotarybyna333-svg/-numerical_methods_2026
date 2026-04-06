@@ -19,7 +19,6 @@ exact = dM_exact(x0)
 def derivative(f, x, h):
     return (f(x + h) - f(x - h)) / (2 * h)
 
-
 h_values = np.logspace(-20, 3, 500)
 errors = [abs(derivative(M, x0, h) - exact) for h in h_values]
 
@@ -51,7 +50,6 @@ y_2h = derivative(M, x0, 2*h)
 
 R1 = abs(y_h - exact)
 
-
 y_R = y_h + (y_h - y_2h) / 3
 R2 = abs(y_R - exact)
 
@@ -66,7 +64,6 @@ print(f"R2     = {R2:.2e} (Уточнення)")
 # ===============================
 y_4h = derivative(M, x0, 4*h)
 
-
 y_E = (y_2h**2 - y_4h * y_h) / (2 * y_2h - (y_4h + y_h))
 p = (1 / np.log(2)) * np.log(abs((y_4h - y_2h) / (y_2h - y_h)))
 R3 = abs(y_E - exact)
@@ -75,3 +72,36 @@ print("\nМетод Ейткена:")
 print(f"y_E    = {y_E:.10f}")
 print(f"Порядок точності p = {p:.4f}")
 print(f"R3     = {R3:.2e}")
+
+# --- ДАНІ ДЛЯ ГРАФІКА 2: Порівняння методів (при h = 10^-3) ---
+h_fix = 1e-3
+y_h = derivative(M, x0, h_fix)
+y_2h = derivative(M, x0, 2*h_fix)
+y_4h = derivative(M, x0, 4*h_fix)
+
+# Розрахунок похибок
+R1 = abs(y_h - exact)                     # Центральна різниця
+y_R = y_h + (y_h - y_2h) / 3              # Рунге-Ромберг
+R2 = abs(y_R - exact)
+y_E = (y_2h**2 - y_4h * y_h) / (2 * y_2h - (y_4h + y_h)) # Ейткен
+R3 = abs(y_E - exact)
+
+# --- ПОБУДОВА ГРАФІКІВ ---
+plt.figure(figsize=(12, 5))
+
+# Графік: Порівняння похибок методів
+plt.subplot(1, 2, 2)
+methods = ['Центральна\nрізниця (R1)', 'Рунге-\nРомберг (R2)', 'Ейткен\n(R3)']
+error_vals = [R1, R2, R3]
+bars = plt.bar(methods, error_vals, color=['#3498db', '#2ecc71', '#e67e22'])
+plt.yscale('log')  # Логарифмічна шкала, бо різниця в точності величезна
+plt.title('Порівняння похибок методів (h=1e-3)')
+plt.ylabel('Абсолютна похибка (log scale)')
+
+# Підписи значень над стовпчиками
+for bar in bars:
+    yval = bar.get_height()
+    plt.text(bar.get_x() + bar.get_width()/2, yval, f'{yval:.1e}', va='bottom', ha='center')
+
+plt.tight_layout()
+plt.show()
