@@ -1,0 +1,66 @@
+import numpy as np
+
+# 1. Генерируємо матрицю A та вектор B
+n = 100
+A = np.random.uniform(1, 10, (n, n))
+x_true = np.full(n, 2.5)  # Заданий розв'язок xi = 2.5
+
+# Обчислюємо вектор вільних членів b = A * x
+b = np.dot(A, x_true)
+
+# Запис у файли
+np.savetxt('matrix_A.txt', A)
+np.savetxt('vector_B.txt', b)
+
+
+# 2. Функції для роботи з LU-розкладом
+def lu_decomposition(A):
+    n = len(A)
+    L = np.eye(n)
+    U = A.copy()
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            factor = U[j, i] / U[i, i]
+            L[j, i] = factor
+            U[j, i:] -= factor * U[i, i:]
+    return L, U
+
+
+def solve_lu(L, U, b):
+    # Прямий хід (Ly = b)
+    y = np.linalg.solve(L, b)  # Або написати власну функцію підстановки
+    # Зворотний хід (Ux = y)
+    x = np.linalg.solve(U, y)
+    return x
+
+
+# 3. Розв'язання заданої системи
+L, U = lu_decomposition(A)
+x_calculated = solve_lu(L, U, b)
+
+# 4. Оцінка точності (нев'язка)
+residual = np.abs(np.dot(A, x_calculated) - b)
+eps = np.max(residual)
+print(f"Початкова точність (max нев'язка): {eps:.2e}")
+
+# 5. Ітераційне уточнення розв'язку
+# x_{k+1} = x_k + delta_x, де A * delta_x = r_k (r_k = b - A*x_k)
+x_refined = x_calculated.copy()
+target_eps = 1e-14
+iterations = 0
+
+while True:
+    r = b - np.dot(A, x_refined)
+    current_err = np.max(np.abs(r))
+
+    if current_err < target_eps or iterations > 100:
+        break
+
+    # Розв'язуємо систему A * delta = r, використовуючи вже готовий LU-розклад
+    delta = solve_lu(L, U, r)
+    x_refined += delta
+    iterations += 1
+
+print(f"Уточнена точність після {iterations} ітерацій: {np.max(np.abs(b - np.dot(A, x_refined))):.2e}")
+print(f"Перші 5 значень уточненого x: {x_refined[:5]}")
