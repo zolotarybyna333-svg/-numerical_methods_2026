@@ -2,11 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
 
-
 # 1. Визначення функції навантаження
 def f(x):
     return 50 + 20 * np.sin(np.pi * x / 12) + 5 * np.exp(-0.2 * (x - 12) ** 2)
-
 
 # Межі інтегрування
 a, b = 0, 24
@@ -15,24 +13,46 @@ a, b = 0, 24
 I_0, _ = quad(f, a, b)
 print(f"Точне значення інтегралу I_0: {I_0:.15f}")
 
-
 # 3. Функція для методу Сімпсона
 def simpson_method(f, a, b, N):
     if N % 2 != 0:
-        N += 1  # Кількість кроків має бути парною
+        N += 1
     h = (b - a) / N
     x = np.linspace(a, b, N + 1)
     y = f(x)
-
-    # Формула Сімпсона: h/3 * (y0 + 4*sum(y_odd) + 2*sum(y_even) + yn)
     I = (h / 3) * (y[0] + 4 * np.sum(y[1:-1:2]) + 2 * np.sum(y[2:-2:2]) + y[-1])
     return I
 
+# Адаптивний метод Сімпсона
+def adaptive_simpson(f, a, b, eps):
+    """ Рекурсивна адаптивна квадратура """
+    def recursive_step(f, a, b, eps, S_whole):
+        c = (a + b) / 2
+        h = b - a
+        # Обчислюємо значення для двох половинок
+        fa, fb, fc = f(a), f(b), f(c)
+        f_left = f((a + c) / 2)
+        f_right = f((c + b) / 2)
+        
+        S_left = (h / 12) * (fa + 4 * f_left + fc)
+        S_right = (h / 12) * (fc + 4 * f_right + fb)
+        S_sum = S_left + S_right
+
+        # Перевірка умови точності (правило Рунге)
+        if abs(S_sum - S_whole) <= 15 * eps:
+            return S_sum + (S_sum - S_whole) / 15
+        
+        return recursive_step(f, a, c, eps/2, S_left) + \
+               recursive_step(f, c, b, eps/2, S_right)
+
+    # Початковий запуск
+    initial_S = (b - a) / 6 * (f(a) + 4 * f((a + b) / 2) + f(b))
+    return recursive_step(f, a, b, eps, initial_S)
+# ----------------------------------------------
 
 # 4. Дослідження залежності точності від N
 N_values = np.arange(10, 1001, 10)
 eps_values = []
-
 N_opt = None
 target_eps = 1e-12
 
@@ -44,60 +64,43 @@ for n in N_values:
         N_opt = n
 
 print(f"Оптимальне N_opt для точності 1e-12: {N_opt}")
-if N_opt:
-    print(f"Отримана точність epsopt: {abs(simpson_method(f, a, b, N_opt) - I_0):.15e}")
 
-# Побудова графіка похибки
-plt.figure(figsize=(10, 6))
-plt.semilogy(N_values, eps_values, label='|I(N) - I_0|')
-plt.axhline(y=target_eps, color='r', linestyle='--', label='Поріг 1e-12')
-plt.title('Залежність похибки методу Сімпсона від N')
-plt.xlabel('Кількість розбиттів N')
-plt.ylabel('Похибка (логарифмічна шкала)')
-plt.grid(True, which="both", ls="-")
-plt.legend()
-plt.show()
-
-# 5. Обчислення для N0
-# N0 ~ Nopt/10, кратне 8
+# 5. Розрахунок N0 та методів уточнення
 if N_opt:
     N0 = (N_opt // 10)
     N0 = N0 + (8 - N0 % 8) if N0 % 8 != 0 else N0
-    if N0 < 8: N0 = 8
 else:
-    N0 = 64  # значення за замовчуванням, якщо N_opt не знайдено
+    N0 = 64
 
 I_N0 = simpson_method(f, a, b, N0)
-eps0 = abs(I_N0 - I_0)
 print(f"\nПараметри для N0={N0}:")
-print(f"I(N0) = {I_N0:.15f}")
-print(f"Похибка eps0 = {eps0:.15e}")
+print(f"I(N0) = {I_N0:.15f}, Похибка = {abs(I_N0 - I_0):.15e}")
 
-# 6. Метод Рунге-Ромберга
+# 6. Рунге-Ромберг
 I_N0_half = simpson_method(f, a, b, N0 // 2)
-I_R = I_N0 + (I_N0 - I_N0_half) / 15  # Для методу Сімпсона порядок p=4, (2^4 - 1) = 15
-epsR = abs(I_R - I_0)
-print(f"\nМетод Рунге-Ромберга:")
-print(f"I_R = {I_R:.15f}")
-print(f"Похибка epsR = {epsR:.15e}")
+I_R = I_N0 + (I_N0 - I_N0_half) / 15
+print(f"Метод Рунге-Ромберга: I_R = {I_R:.15f}, Похибка = {abs(I_R - I_0):.15e}")
 
-# 7. Метод Ейткена
-I_1 = simpson_method(f, a, b, N0)
-I_2 = simpson_method(f, a, b, N0 // 2)
-I_4 = simpson_method(f, a, b, N0 // 4)
-
-# Уточнене значення за Ейткеном
-denominator = (I_2 - I_1) - (I_4 - I_2)
-if denominator != 0:
+# 7. Ейткен
+I_1, I_2, I_4 = simpson_method(f, a, b, N0), simpson_method(f, a, b, N0 // 2), simpson_method(f, a, b, N0 // 4)
+if (2 * I_2 - (I_1 + I_4)) != 0:
     I_E = (I_2 ** 2 - I_1 * I_4) / (2 * I_2 - (I_1 + I_4))
-    # Обчислення порядку точності p
-    ratio = abs((I_4 - I_2) / (I_2 - I_1))
-    p = (1 / np.log(2)) * np.log(ratio)
-    epsE = abs(I_E - I_0)
+    print(f"Метод Ейткена: I_E = {I_E:.15f}, Похибка = {abs(I_E - I_0):.15e}")
 
-    print(f"\nМетод Ейткена:")
-    print(f"I_E = {I_E:.15f}")
-    print(f"Порядок p = {p:.4f}")
-    print(f"Похибка epsE = {epsE:.15e}")
-else:
-    print("\nМетод Ейткена неможливо обчислити (ділення на нуль).")
+# 8. Виклик адаптивного методу
+I_adapt = adaptive_simpson(f, a, b, target_eps)
+print(f"\nАдаптивний метод (ціль {target_eps}):")
+print(f"I_adapt = {I_adapt:.15f}")
+print(f"Фактична похибка = {abs(I_adapt - I_0):.15e}")
+
+# Графік
+plt.figure(figsize=(10, 6))
+plt.semilogy(N_values, eps_values, label='Стандартний Сімпсон')
+plt.axhline(y=target_eps, color='r', linestyle='--', label='Цільова точність')
+plt.scatter([N_opt if N_opt else 0], [target_eps], color='green', zorder=5, label='N_opt')
+plt.title('Порівняння похибок')
+plt.xlabel('N')
+plt.ylabel('Похибка')
+plt.grid(True, which="both", ls="-")
+plt.legend()
+plt.show()
