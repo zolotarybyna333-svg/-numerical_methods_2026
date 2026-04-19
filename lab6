@@ -1,6 +1,6 @@
 import numpy as np
 
-# 1. Генерируємо матрицю A та вектор B
+# 1. Генеруємо матрицю A та вектор B
 n = 100
 A = np.random.uniform(1, 10, (n, n))
 x_true = np.full(n, 2.5)  # Заданий розв'язок xi = 2.5
@@ -29,7 +29,7 @@ def lu_decomposition(A):
 
 def solve_lu(L, U, b):
     # Прямий хід (Ly = b)
-    y = np.linalg.solve(L, b)  # Або написати власну функцію підстановки
+    y = np.linalg.solve(L, b) 
     # Зворотний хід (Ux = y)
     x = np.linalg.solve(U, y)
     return x
