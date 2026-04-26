@@ -1,0 +1,118 @@
+import numpy as np
+
+
+# --- Частина 1: Підготовка даних ---
+
+def generate_data(n=100, x_true_val=2.5):
+    # Генеруємо випадкову матрицю
+    A = np.random.uniform(0, 10, (n, n))
+
+    # Забезпечуємо діагональне переважання для збіжності ітераційних методів
+    for i in range(n):
+        row_sum = np.sum(np.abs(A[i, :])) - np.abs(A[i, i])
+        A[i, i] = row_sum + np.random.uniform(1, 10)
+
+    # Задаємо розв'язок x = [2.5, 2.5, ..., 2.5]
+    x_true = np.full(n, x_true_val)
+
+    # Обчислюємо вектор вільних членів b = A * x
+    b = A @ x_true
+
+    # Запис у файли
+    np.savetxt('matrix_A.txt', A)
+    np.savetxt('vector_b.txt', b)
+    print("Матрицю A та вектор b згенеровано та збережено.")
+
+
+# --- Частина 2: Функції для розв'язку ---
+
+def read_data():
+    A = np.loadtxt('matrix_A.txt')
+    b = np.loadtxt('vector_b.txt')
+    return A, b
+
+
+def vector_norm(v):
+    return np.max(np.abs(v))  # Нескінченна норма (L-infinity)
+
+
+def matrix_norm(A):
+    return np.max(np.sum(np.abs(A), axis=1))
+
+
+def simple_iteration(A, b, eps=1e-14, max_iter=1000):
+    n = len(b)
+    # Приводимо до вигляду x = beta + alpha * x
+    # alpha = I - D^-1 * A (спрощений варіант для простої ітерації)
+    D_inv = np.diag(1.0 / np.diag(A))
+    alpha = np.eye(n) - D_inv @ A
+    beta = D_inv @ b
+
+    x = np.ones(n)  # Початкове наближення x(0) = 1.0
+    for k in range(1, max_iter + 1):
+        x_new = beta + alpha @ x
+        if vector_norm(x_new - x) < eps:
+            return x_new, k
+        x = x_new
+    return x, max_iter
+
+
+def jacobi_method(A, b, eps=1e-14, max_iter=1000):
+    n = len(b)
+    x = np.ones(n)
+    for k in range(1, max_iter + 1):
+        x_new = np.zeros(n)
+        for i in range(n):
+            s = sum(A[i][j] * x[j] for j in range(n) if i != j)
+            x_new[i] = (b[i] - s) / A[i][i]
+
+        if vector_norm(x_new - x) < eps:
+            return x_new, k
+        x = x_new
+    return x, max_iter
+
+
+def gauss_seidel(A, b, eps=1e-14, max_iter=1000):
+    n = len(b)
+    x = np.ones(n)
+    for k in range(1, max_iter + 1):
+        x_old = x.copy()
+        for i in range(n):
+            s1 = sum(A[i][j] * x[j] for j in range(i))
+            s2 = sum(A[i][j] * x_old[j] for j in range(i + 1, n))
+            x[i] = (b[i] - s1 - s2) / A[i][i]
+
+        if vector_norm(x - x_old) < eps:
+            return x, k
+    return x, max_iter
+
+
+# --- Основний блок виконання ---
+
+if __name__ == "__main__":
+    # 1. Генеруємо дані
+    n_size = 100
+    generate_data(n_size)
+
+    # 2. Зчитуємо дані
+    A, b = read_data()
+    print(f"Норма матриці A: {matrix_norm(A):.4f}")
+
+    # 3. Виконуємо розрахунки
+    target_eps = 1e-14
+
+    methods = [
+        ("Проста ітерація", simple_iteration),
+        ("Метод Якобі", jacobi_method),
+        ("Метод Зейделя", gauss_seidel)
+    ]
+
+    print("-" * 50)
+    print(f"{'Метод':<20} | {'Ітерацій':<10} | {'Помилка (max)':<15}")
+    print("-" * 50)
+
+    for name, method_func in methods:
+        sol, iters = method_func(A, b, eps=target_eps)
+        # Перевірка точності порівняно з ідеальним x=2.5
+        error = vector_norm(sol - 2.5)
+        print(f"{name:<20} | {iters:<10} | {error:.2e}")
