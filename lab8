@@ -5,15 +5,11 @@ import matplotlib.pyplot as plt
 def f(x):
     return np.sin(x) - 0.5 * x + 1
 
-def df(x): # Перша похідна для Ньютона
+def df(x):
     return np.cos(x) - 0.5
 
-def ddf(x): # Друга похідна для Чебишева
+def ddf(x):
     return -np.sin(x)
-
-def phi(x): # Для методу простої ітерації (x = phi(x))
-    # Перетворимо f(x)=0 в x = 2*(sin(x) + 1)
-    return 2 * (np.sin(x) + 1)
 
 # Параметри завдання
 A, B = -5, 5
@@ -29,13 +25,11 @@ with open("tabulation.txt", "w") as file:
     for xi, yi in zip(x_tab, y_tab):
         file.write(f"{xi:.2f}\t{yi:.6f}\n")
 
-# Пошук проміжків, де функція змінює знак (f(a)*f(b) < 0)
 roots_intervals = []
 for i in range(len(y_tab) - 1):
     if y_tab[i] * y_tab[i+1] < 0:
         roots_intervals.append((x_tab[i], x_tab[i+1]))
 
-# Вибираємо дві точки: одну де функція зростає, іншу - де спадає
 x0_up = None
 x0_down = None
 
@@ -48,14 +42,17 @@ for start, end in roots_intervals:
 
 # --- ПУНКТ 2 & 3: Реалізація методів ---
 def check_stop(x_new, x_old, eps):
-    # Умова з пункту 3: одночасне виконання двох умов
     return abs(f(x_new)) < eps and abs(x_new - x_old) < eps
 
 def simple_iteration(x0, eps):
+    """Метод простої ітерації з релаксацією для гарантованої збіжності."""
     curr_x = x0
+    # tau підбирається так, щоб |1 + tau*f'(x)| < 1
+    # Для нашої функції f'(x) в межах [-1.5, 0.5], tau = -0.5 — гарний вибір
+    tau = -0.5 if df(x0) > 0 else 0.5
     iters = 0
     while iters < 1000:
-        next_x = phi(curr_x)
+        next_x = curr_x + tau * f(curr_x)
         iters += 1
         if check_stop(next_x, curr_x, eps):
             return next_x, iters
@@ -66,7 +63,9 @@ def newton_method(x0, eps):
     curr_x = x0
     iters = 0
     while iters < 1000:
-        next_x = curr_x - f(curr_x) / df(curr_x)
+        d_val = df(curr_x)
+        if abs(d_val) < 1e-15: break
+        next_x = curr_x - f(curr_x) / d_val
         iters += 1
         if check_stop(next_x, curr_x, eps):
             return next_x, iters
@@ -78,7 +77,7 @@ def chebyshev_method(x0, eps):
     iters = 0
     while iters < 1000:
         fx, dfx, ddfx = f(curr_x), df(curr_x), ddf(curr_x)
-        # Формула Чебишева (враховує кривизну через 2-гу похідну)
+        if abs(dfx) < 1e-15: break
         next_x = curr_x - fx/dfx - (ddfx * fx**2) / (2 * dfx**3)
         iters += 1
         if check_stop(next_x, curr_x, eps):
@@ -86,20 +85,67 @@ def chebyshev_method(x0, eps):
         curr_x = next_x
     return curr_x, iters
 
-def secant_method(x0, eps): # Метод хорд/січних
-    x_prev = x0 - 0.1
+def secant_method(x0, eps):
+    x_prev = x0 - 0.01
     x_curr = x0
     iters = 0
     while iters < 1000:
         fx = f(x_curr)
-        next_x = x_curr - fx * (x_curr - x_prev) / (fx - f(x_prev))
+        f_prev = f(x_prev)
+        if abs(fx - f_prev) < 1e-15: break
+        next_x = x_curr - fx * (x_curr - x_prev) / (fx - f_prev)
         iters += 1
         if check_stop(next_x, x_curr, eps):
             return next_x, iters
         x_prev, x_curr = x_curr, next_x
     return x_curr, iters
 
-# --- ПУНКТ 4: Вивід результатів ---
+# --- ПУНКТ 7, 8, 9: Алгебраїчні многочлени ---
+def horner_eval(coeffs, x):
+    p = coeffs[0]
+    dp = 0
+    for i in range(1, len(coeffs)):
+        dp = dp * x + p
+        p = p * x + coeffs[i]
+    return p, dp
+
+def newton_horner(coeffs, x0, eps=1e-10):
+    curr_x, iters = x0, 0
+    while iters < 1000:
+        val, der = horner_eval(coeffs, curr_x)
+        if abs(der) < 1e-15: break
+        next_x = curr_x - val / der
+        iters += 1
+        if abs(next_x - curr_x) < eps and abs(val) < eps:
+            return next_x, iters
+        curr_x = next_x
+    return curr_x, iters
+
+def lin_method(coeffs, eps=1e-10):
+    n = len(coeffs) - 1
+    p, q = 1.0, 1.0  # Більш стабільні початкові наближення
+    iters = 0
+    while iters < 1000:
+        b = np.zeros(len(coeffs))
+        b[0] = coeffs[0]
+        b[1] = coeffs[1] - p * b[0]
+        for i in range(2, n + 1):
+            b[i] = coeffs[i] - p * b[i - 1] - q * b[i - 2]
+
+        denom = b[n - 2]
+        if abs(denom) < 1e-18: denom = 1e-18 # Захист від nan
+
+        dp, dq = b[n - 1] / denom, b[n] / denom
+        p, q = p + dp, q + dq
+        iters += 1
+        if abs(dp) < eps and abs(dq) < eps: break
+
+    discriminant = p ** 2 - 4 * q
+    r1 = (-p + np.lib.scimath.sqrt(discriminant)) / 2
+    r2 = (-p - np.lib.scimath.sqrt(discriminant)) / 2
+    return (r1, r2), iters
+
+# --- ВИВІД РЕЗУЛЬТАТІВ ---
 methods = [
     ("Метод ітерації", simple_iteration),
     ("Метод Ньютона", newton_method),
@@ -110,25 +156,29 @@ methods = [
 print(f"{'Метод':<20} | {'Корінь 1 (іт.)':<18} | {'Корінь 2 (іт.)':<18}")
 print("-" * 65)
 for name, func in methods:
-    r1, i1 = func(x0_up, EPSILON) if x0_up else (0, 0)
-    r2, i2 = func(x0_down, EPSILON) if x0_down else (0, 0)
-    print(f"{name:<20} | {r1:10.7f} ({i1:2}) | {r2:10.7f} ({i2:2})")
+    res1, it1 = func(x0_up, EPSILON) if x0_up is not None else (0, 0)
+    res2, it2 = func(x0_down, EPSILON) if x0_down is not None else (0, 0)
+    print(f"{name:<20} | {res1:10.7f} ({it1:2}) | {res2:10.7f} ({it2:2})")
 
-# --- ПУНКТ 5 & 6: Алгебраїчне рівняння 3-го порядку ---
-# Рівняння: x^3 - 2x^2 + 4x - 8 = 0 має один дійсний корінь (x=2)
-# і два комплексних (2i, -2i).
-poly_coeffs = [1, -2, 4, -8] 
-
+# Робота з многочленом (один раз за межами циклу)
+poly_coeffs = [1, -2, 4, -8] # x^3 - 2x^2 + 4x - 8
 with open("poly_coeffs.txt", "w") as f_poly:
     f_poly.write(" ".join(map(str, poly_coeffs)))
 
-def P(x): return x**3 - 2*x**2 + 4*x - 8
+coeffs_from_file = np.array(poly_coeffs)
+real_root, n_iters = newton_horner(coeffs_from_file, 3.0)
+comp_roots, l_iters = lin_method(coeffs_from_file)
 
+print(f"\n--- Результати для многочлена (Пункт 8, 9) ---")
+print(f"Дійсний корінь: {real_root:.6f} (ітерацій: {n_iters})")
+print(f"Комплексні корені: {comp_roots[0]:.4f}, {comp_roots[1]:.4f} (ітерацій: {l_iters})")
+
+# Побудова графіка
 plt.figure(figsize=(8, 4))
 xp = np.linspace(-1, 4, 100)
-plt.plot(xp, P(xp), 'r', label='$x^3 - 2x^2 + 4x - 8$')
+plt.plot(xp, xp**3 - 2*xp**2 + 4*xp - 8, 'r', label='$x^3 - 2x^2 + 4x - 8$')
 plt.axhline(0, color='black', lw=1)
-plt.title("Алгебраїчне рівняння (1 дійсний корінь)")
+plt.title("Графік алгебраїчного рівняння")
 plt.grid(True)
 plt.legend()
 plt.show()
