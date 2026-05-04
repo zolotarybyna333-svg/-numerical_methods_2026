@@ -1,0 +1,134 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- 1. Визначення функцій ---
+def f(x):
+    return np.sin(x) - 0.5 * x + 1
+
+def df(x): # Перша похідна для Ньютона
+    return np.cos(x) - 0.5
+
+def ddf(x): # Друга похідна для Чебишева
+    return -np.sin(x)
+
+def phi(x): # Для методу простої ітерації (x = phi(x))
+    # Перетворимо f(x)=0 в x = 2*(sin(x) + 1)
+    return 2 * (np.sin(x) + 1)
+
+# Параметри завдання
+A, B = -5, 5
+H = 0.1
+EPSILON = 1e-10
+
+# --- ПУНКТ 1: Табуляція та пошук початкових наближень ---
+x_tab = np.arange(A, B + H, H)
+y_tab = f(x_tab)
+
+with open("tabulation.txt", "w") as file:
+    file.write("x\t\tf(x)\n")
+    for xi, yi in zip(x_tab, y_tab):
+        file.write(f"{xi:.2f}\t{yi:.6f}\n")
+
+# Пошук проміжків, де функція змінює знак (f(a)*f(b) < 0)
+roots_intervals = []
+for i in range(len(y_tab) - 1):
+    if y_tab[i] * y_tab[i+1] < 0:
+        roots_intervals.append((x_tab[i], x_tab[i+1]))
+
+# Вибираємо дві точки: одну де функція зростає, іншу - де спадає
+x0_up = None
+x0_down = None
+
+for start, end in roots_intervals:
+    mid = (start + end) / 2
+    if df(mid) > 0 and x0_up is None:
+        x0_up = mid
+    elif df(mid) < 0 and x0_down is None:
+        x0_down = mid
+
+# --- ПУНКТ 2 & 3: Реалізація методів ---
+def check_stop(x_new, x_old, eps):
+    # Умова з пункту 3: одночасне виконання двох умов
+    return abs(f(x_new)) < eps and abs(x_new - x_old) < eps
+
+def simple_iteration(x0, eps):
+    curr_x = x0
+    iters = 0
+    while iters < 1000:
+        next_x = phi(curr_x)
+        iters += 1
+        if check_stop(next_x, curr_x, eps):
+            return next_x, iters
+        curr_x = next_x
+    return curr_x, iters
+
+def newton_method(x0, eps):
+    curr_x = x0
+    iters = 0
+    while iters < 1000:
+        next_x = curr_x - f(curr_x) / df(curr_x)
+        iters += 1
+        if check_stop(next_x, curr_x, eps):
+            return next_x, iters
+        curr_x = next_x
+    return curr_x, iters
+
+def chebyshev_method(x0, eps):
+    curr_x = x0
+    iters = 0
+    while iters < 1000:
+        fx, dfx, ddfx = f(curr_x), df(curr_x), ddf(curr_x)
+        # Формула Чебишева (враховує кривизну через 2-гу похідну)
+        next_x = curr_x - fx/dfx - (ddfx * fx**2) / (2 * dfx**3)
+        iters += 1
+        if check_stop(next_x, curr_x, eps):
+            return next_x, iters
+        curr_x = next_x
+    return curr_x, iters
+
+def secant_method(x0, eps): # Метод хорд/січних
+    x_prev = x0 - 0.1
+    x_curr = x0
+    iters = 0
+    while iters < 1000:
+        fx = f(x_curr)
+        next_x = x_curr - fx * (x_curr - x_prev) / (fx - f(x_prev))
+        iters += 1
+        if check_stop(next_x, x_curr, eps):
+            return next_x, iters
+        x_prev, x_curr = x_curr, next_x
+    return x_curr, iters
+
+# --- ПУНКТ 4: Вивід результатів ---
+methods = [
+    ("Метод ітерації", simple_iteration),
+    ("Метод Ньютона", newton_method),
+    ("Метод Чебишева", chebyshev_method),
+    ("Метод хорд", secant_method)
+]
+
+print(f"{'Метод':<20} | {'Корінь 1 (іт.)':<18} | {'Корінь 2 (іт.)':<18}")
+print("-" * 65)
+for name, func in methods:
+    r1, i1 = func(x0_up, EPSILON) if x0_up else (0, 0)
+    r2, i2 = func(x0_down, EPSILON) if x0_down else (0, 0)
+    print(f"{name:<20} | {r1:10.7f} ({i1:2}) | {r2:10.7f} ({i2:2})")
+
+# --- ПУНКТ 5 & 6: Алгебраїчне рівняння 3-го порядку ---
+# Рівняння: x^3 - 2x^2 + 4x - 8 = 0 має один дійсний корінь (x=2)
+# і два комплексних (2i, -2i).
+poly_coeffs = [1, -2, 4, -8] 
+
+with open("poly_coeffs.txt", "w") as f_poly:
+    f_poly.write(" ".join(map(str, poly_coeffs)))
+
+def P(x): return x**3 - 2*x**2 + 4*x - 8
+
+plt.figure(figsize=(8, 4))
+xp = np.linspace(-1, 4, 100)
+plt.plot(xp, P(xp), 'r', label='$x^3 - 2x^2 + 4x - 8$')
+plt.axhline(0, color='black', lw=1)
+plt.title("Алгебраїчне рівняння (1 дійсний корінь)")
+plt.grid(True)
+plt.legend()
+plt.show()
