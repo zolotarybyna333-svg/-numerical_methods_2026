@@ -1,0 +1,106 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+# --- Аналітичний розв'язок ---
+def f(x, y):
+    return x + y
+
+
+def y_exact(x):
+    return 2 * np.exp(x) - x - 1
+
+
+# Допоміжна функція РК4
+def runge_kutta_4_step(f, xn, yn, h):
+    k1 = f(xn, yn)
+    k2 = f(xn + h / 2, yn + h * k1 / 2)
+    k3 = f(xn + h / 2, yn + h * k2 / 2)
+    k4 = f(xn + h, yn + h * k3)
+    return yn + (h / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+
+
+# --- Метод Адамса 2-го порядку ---
+def adams_2_fixed_step(f, x0, y0, x_end, h, eps):
+    x = [x0, x0 + h]
+    # Початкові значення знаходяться методом РК4
+    y = [y0, runge_kutta_4_step(f, x0, y0, h)]
+    errors_approx = [0, 0]  # Додаємо нулі для перших точок, щоб розміри збігалися
+
+    while x[-1] < x_end:
+        xn, xn_1 = x[-1], x[-2]
+        yn, yn_1 = y[-1], y[-2]
+        fn, fn_1 = f(xn, yn), f(xn_1, yn_1)
+
+        # Прогноз
+        y_pred = yn + (h / 2) * (3 * fn - fn_1)
+
+        # Корекція (ітерації)
+        y_corr = y_pred
+        for _ in range(2):  # Оптимально 2 ітерації
+            y_corr = yn + (h / 2) * (f(xn + h, y_corr) + fn)
+
+        # Кінцеве значення з етапом модифікації
+        y_final = y_corr - (1 / 6) * (y_corr - y_pred)
+
+        # Зберігаємо оцінку похибки для графіка
+        errors_approx.append(abs(y_corr - y_pred))
+
+        x.append(xn + h)
+        y.append(y_final)
+
+    return np.array(x), np.array(y), np.array(errors_approx)
+
+
+# --- Автоматичний вибір кроку ---
+def rk4_auto_step(f, x0, y0, x_end, eps):
+    x, y, h_list = [x0], [y0], []
+    h = 0.01
+    while x[-1] < x_end:
+        y1 = runge_kutta_4_step(f, x[-1], y[-1], h)
+        y2_half = runge_kutta_4_step(f, x[-1], y[-1], h / 2)
+        y2 = runge_kutta_4_step(f, x[-1] + h / 2, y2_half, h / 2)
+
+        err_runge = (16 / 15) * abs(y1 - y2)
+
+        if err_runge > eps:
+            h /= 2
+        else:
+            x.append(x[-1] + h)
+            y.append(y1)
+            h_list.append(h)
+            if err_runge < eps / 32:
+                h *= 2
+    return np.array(x), np.array(y), h_list
+
+
+# --- ОБЧИСЛЕННЯ ТА ВІЗУАЛІЗАЦІЯ ---
+x0, y0, x_b, eps_val = 0, 1, 2, 1e-4
+x_ad, y_ad, err_ad = adams_2_fixed_step(f, x0, y0, x_b, 0.05, eps_val)
+x_rk, y_rk, h_hist = rk4_auto_step(f, x0, y0, x_b, eps_val)
+
+fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+
+# Графік 1: Локальна похибка
+axs[0, 0].plot(x_ad, abs(y_ad - y_exact(x_ad)), 'r', label='Adams Exact Error')
+axs[0, 0].plot(x_rk, abs(y_rk - y_exact(x_rk)), 'b', label='RK4 Exact Error')
+axs[0, 0].set_yscale('log')
+axs[0, 0].set_title("Локальна похибка (Exact)")
+axs[0, 0].legend()
+
+# Графік 2: Оцінка похибки Адамса
+# Тепер довжина x_ad та err_ad однакова (41 точка)
+axs[0, 1].plot(x_ad, err_ad, 'g', label='|y_corr - y_pred|')
+axs[0, 1].set_title("Оцінка похибки Адамса (y_kor - y_np)")
+axs[0, 1].legend()
+
+# Графік 3: Автоматичний крок
+axs[1, 0].step(x_rk[:-1], h_hist, where='post', color='m')
+axs[1, 0].set_title("Залежність кроку h(x)")
+
+# Графік 4: Похибка за Рунге
+axs[1, 1].plot(x_rk, abs(y_rk - y_exact(x_rk)) * 15 / 16, 'orange')
+axs[1, 1].set_title("Похибка за методом Рунге")
+
+plt.tight_layout()
+plt.show()
